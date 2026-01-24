@@ -1,7 +1,6 @@
 # Python
 __pycache__/
 *.py[cod]
-*.so
 venv/
 .venv/
 
@@ -12,51 +11,3 @@ venv/
 .idea/
 .vscode/
 *.swp
-
-# Training outputs (large files by default)
-*.png
-*.zip
-
-# But keep reinforcement-learning checkpoints
-!reinforcement-learning/checkpoints/**/*.zip
-
-# Checkpoints - exclude intermediate, keep finals
-checkpoints/*/model_1pct*
-checkpoints/*/model_25pct*
-checkpoints/*/model_50pct*
-checkpoints/*/model_75pct*
-
-# Exclude experimental checkpoints
-checkpoints/accel*/
-checkpoints/accelerate*/
-checkpoints/adaptive*/
-checkpoints/amplitude*/
-checkpoints/arm_*/
-checkpoints/beginner*/
-checkpoints/big_foil*/
-checkpoints/cpg*/
-checkpoints/domain*/
-checkpoints/efficient*/
-checkpoints/explore*/
-checkpoints/free_arm*/
-checkpoints/glide*/
-checkpoints/high_speed*/
-checkpoints/max_glide*/
-checkpoints/mocap*/
-checkpoints/new_physics*/
-checkpoints/run*/
-checkpoints/small_foils*/
-checkpoints/speed_*/
-checkpoints/sustained*/
-checkpoints/survival*/
-checkpoints/universal*/
-checkpoints/stylized/
-
-# Videos - exclude most, keep key ones
-*.mp4
-!style_comparison.mp4
-!sustained_60s.mp4
-!foil_size_comparison.mp4
-
-# Keep docs images
-!docs/*.png
