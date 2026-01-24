@@ -1,0 +1,18 @@
+# MuJoCo Pump Foil Environment
+# Requires Python 3.11 (3.14 not yet supported by MuJoCo)
+# Create venv: python3.11 -m venv venv_mujoco
+
+mujoco>=3.0.0
+mujoco-mjx>=3.0.0
+gymnasium>=0.29.0
+numpy>=1.24.0
+pillow>=10.0.0
+imageio[ffmpeg]>=2.30.0
+tqdm>=4.65.0
+
+# JAX for GPU-accelerated training
+jax>=0.4.20
+jaxlib>=0.4.20
+
+# Brax for PPO
+brax>=0.10.0

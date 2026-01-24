@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 venv/
 .venv/
+venv_mujoco/
 
 # OS
 .DS_Store
@@ -11,3 +12,14 @@ venv/
 .idea/
 .vscode/
 *.swp
+
+# Training outputs
+checkpoints/
+*.mp4
+*.png
+*.npy
+
+# MuJoCo outputs
+mujoco/checkpoints/
+mujoco/*.mp4
+mujoco/*.png
