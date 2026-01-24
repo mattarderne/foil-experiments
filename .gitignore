@@ -1,25 +1,20 @@
 # Python
 __pycache__/
 *.py[cod]
-venv/
+venv*/
 .venv/
-venv_mujoco/
 
-# OS
-.DS_Store
+# Archive (legacy code)
+archive/
 
-# IDE
-.idea/
-.vscode/
-*.swp
-
-# Training outputs
-checkpoints/
+# Outputs
 *.mp4
 *.png
+*.gif
+*.zip
 *.npy
 
-# MuJoCo outputs
-mujoco/checkpoints/
-mujoco/*.mp4
-mujoco/*.png
+# IDE
+.DS_Store
+.idea/
+.vscode/
