@@ -205,14 +205,13 @@ class PumpFoilBraxEnv(envs.Env):
         L_stab_z = -q * self.S_stab * self.lift_slope * (theta + self.stab_angle_rad - gamma) * 0.5
         M_stab = -L_stab_z * 0.6
 
-        # Weight and leg force
-        W = -self.total_mass * self.g
+        # Leg force (MuJoCo handles gravity)
         leg_vel = (mjx_data.qvel[6] + mjx_data.qvel[7]) / 2
-        leg_force = leg_vel * 50
+        leg_force = leg_vel * 20
 
         Fx = Dx + jnp.where(jnp.abs(vz) > 0.1,
                            self.pump_efficiency * jnp.abs(vz) * jnp.abs(L), 0.0)
-        Fz = Lz + W - leg_force + L_stab_z
+        Fz = Lz - leg_force + L_stab_z  # No W - MuJoCo adds gravity
 
         waist_pos = mjx_data.qpos[11]
         My = M_stab + waist_pos * 100

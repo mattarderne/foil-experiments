@@ -26,24 +26,29 @@ from foil_env.foil_physics import FoilPhysics, FoilState, CONFIG
 @dataclass
 class MuJoCoFoilConfig:
     """Configuration for the MuJoCo foil environment."""
-    # Foil physics
-    S: float = 0.18              # Wing area (m²)
-    S_stab: float = 0.035        # Stabilizer area (m²)
+    # Foil physics (sized for 86kg MuJoCo model)
+    S: float = 0.22              # Wing area (m²) - larger for heavier model
+    S_stab: float = 0.044        # Stabilizer area (m²)
     AR: float = 8.0              # Aspect ratio
-    stab_angle: float = -4.0     # Stabilizer angle (deg)
-    Cd0: float = 0.008           # Parasitic drag
-    Cd_mast: float = 0.06        # Mast drag
-    pump_thrust_efficiency: float = 0.20  # Pump thrust conversion
+    stab_angle: float = -1.0     # Stabilizer angle (deg)
+    Cd0: float = 0.006           # Parasitic drag (reduced for modern foils)
+    Cd_mast: float = 0.04        # Mast drag (reduced for carbon)
+    pump_thrust_efficiency: float = 0.30  # Pump thrust conversion (tuned for sustained flight)
 
     # Environment
     max_episode_steps: int = 6000  # 60s at 100Hz
     initial_velocity: float = 4.5  # m/s
     initial_height: float = 0.0    # m (at water level)
+    initial_pitch: float = 0.0635  # ~3.64° (lift-equilibrium pitch)
 
     # Termination conditions
     breach_height: float = 0.3     # Foil breach threshold
     touchdown_depth: float = -0.5  # Board touchdown threshold
     stall_velocity: float = 1.5    # Minimum velocity
+
+    # Pitch control gains (strong PD for stability)
+    pitch_Kp: float = 500.0        # Position gain
+    pitch_Kd: float = 200.0        # Velocity gain
 
     # Rewards
     altitude_target: float = 0.0   # Target altitude
@@ -168,9 +173,9 @@ class PumpFoilEnvMuJoCo(gym.Env):
         # Set initial forward velocity
         self.mj_data.qvel[0] = self.config.initial_velocity  # vx
 
-        # Set slight pitch for trim
+        # Set initial pitch (equilibrium angle)
         # Convert pitch angle to quaternion (rotation about Y axis)
-        pitch = 0.08  # ~5 degrees
+        pitch = self.config.initial_pitch  # ~3.64° for lift equilibrium
         self.mj_data.qpos[3] = np.cos(pitch / 2)  # w
         self.mj_data.qpos[5] = np.sin(pitch / 2)  # y component
 
@@ -288,12 +293,13 @@ class PumpFoilEnvMuJoCo(gym.Env):
         return FoilState(x=x, z=z, vx=vx, vz=vz, theta=theta, omega=omega)
 
     def _compute_foil_forces(self, state: FoilState) -> Dict[str, float]:
-        """Compute hydrodynamic forces using custom physics."""
-        forces = self.foil_physics.calculate_forces(state)
+        """Compute hydrodynamic forces using custom physics.
 
-        # Weight
-        total_mass = sum(self.mj_model.body_mass)
-        W = -total_mass * 9.81
+        NOTE: MuJoCo already applies gravity, so we only add hydrodynamic forces.
+
+        Uses pure PD pitch control (not M_stab) for stability with articulated rider.
+        """
+        forces = self.foil_physics.calculate_forces(state)
 
         # Compute leg force from rider motion (vertical reaction)
         # This comes from the center of mass acceleration
@@ -303,23 +309,31 @@ class PumpFoilEnvMuJoCo(gym.Env):
         avg_leg_vel = (left_knee_vel + right_knee_vel) / 2
 
         # Leg extension pushes board down (reaction force)
-        leg_force = avg_leg_vel * 50  # Simplified scaling
+        leg_force = avg_leg_vel * 20  # Reduced scaling
 
-        # Net forces
+        # Net forces (MuJoCo handles gravity, we add hydro forces only)
         Fx = forces.F_hydro_x
-        Fz = forces.F_hydro_z + W - leg_force
+        Fz = forces.F_hydro_z - leg_force  # No W - MuJoCo adds gravity
 
-        # Add pump thrust
+        # Add pump thrust from vertical motion
+        # Only apply when altitude is near target (actual pumping, not just rising/falling)
         pump_efficiency = self.config.pump_thrust_efficiency
-        if abs(state.vz) > 0.1:
+        altitude_in_range = abs(state.z - self.config.altitude_target) < 0.15
+        if abs(state.vz) > 0.1 and altitude_in_range:
+            # Cap pump thrust to prevent runaway acceleration
             pump_thrust = pump_efficiency * abs(state.vz) * abs(forces.L)
+            pump_thrust = min(pump_thrust, 50.0)  # Cap at 50N
             Fx += pump_thrust
 
-        # Pitch moment from stabilizer and rider lean
-        waist_pos, waist_vel = self._get_joint("waist")
-        rider_moment = waist_pos * 100  # Simplified: lean creates pitch moment
+        # Pure PD pitch control (don't use M_stab - it causes overcorrection)
+        # Target pitch is the equilibrium angle where lift = weight
+        target_pitch = self.config.initial_pitch
+        pitch_error = state.theta - target_pitch
 
-        My = forces.M_stab + forces.M_weight + rider_moment
+        # Strong PD control to overcome rider body dynamics
+        Kp = self.config.pitch_Kp
+        Kd = self.config.pitch_Kd
+        My = -Kp * pitch_error - Kd * state.omega
 
         return {'Fx': Fx, 'Fz': Fz, 'My': My}
 

@@ -1,0 +1,57 @@
+<!--
+  Pump Foil Rider - RIGID VERSION (no articulation)
+
+  For testing physics without internal body dynamics.
+  The rider is a single capsule welded to the board.
+-->
+
+<mujoco model="pump_foil_rigid">
+  <compiler angle="radian"/>
+  <option timestep="0.01" gravity="0 0 -9.81"/>
+
+  <visual>
+    <global offwidth="1920" offheight="1080"/>
+    <quality shadowsize="2048"/>
+  </visual>
+
+  <asset>
+    <material name="board" rgba="0.6 0.3 0.1 1"/>
+    <material name="rider" rgba="0.2 0.4 0.6 1"/>
+    <material name="water" rgba="0.2 0.5 0.8 0.3"/>
+  </asset>
+
+  <worldbody>
+    <!-- Cameras -->
+    <camera name="side" pos="0 5 1" xyaxes="-1 0 0 0 0 1" mode="trackcom"/>
+    <camera name="front" pos="5 0 1" xyaxes="0 1 0 0 0 1" mode="trackcom"/>
+    <camera name="iso" pos="3 3 2" xyaxes="-0.7 0.7 0 0 0 1" mode="trackcom"/>
+
+    <!-- Water surface (visual only) -->
+    <geom name="water_surface" type="plane" pos="0 0 0" size="10 10 0.01"
+          material="water" contype="0" conaffinity="0"/>
+
+    <!-- Board + Rigid Rider as single body -->
+    <body name="board" pos="0 0 0.2">
+      <freejoint name="board_joint"/>
+
+      <!-- Board: 6kg -->
+      <geom name="board_geom" type="box" size="0.7 0.25 0.025" mass="6"
+            material="board"/>
+
+      <!-- Rider as single rigid capsule: 80kg, 1.5m tall -->
+      <!-- COM at about 0.8m above board -->
+      <geom name="rider" type="capsule" fromto="0 0 0.05  0 0 1.5"
+            size="0.12" mass="80" material="rider"/>
+
+      <site name="mast_base" pos="0 0 -0.025" size="0.02"/>
+    </body>
+  </worldbody>
+
+  <!-- Sensors -->
+  <sensor>
+    <framepos name="board_pos" objtype="body" objname="board"/>
+    <framequat name="board_quat" objtype="body" objname="board"/>
+    <framelinvel name="board_vel" objtype="body" objname="board"/>
+    <frameangvel name="board_angvel" objtype="body" objname="board"/>
+  </sensor>
+</mujoco>

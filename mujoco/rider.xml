@@ -35,7 +35,7 @@
   </visual>
 
   <default>
-    <joint damping="5" armature="0.1"/>
+    <joint damping="50" armature="0.5"/>  <!-- Higher damping for stability -->
     <geom contype="1" conaffinity="1" friction="1 0.5 0.5"/>
     <motor ctrllimited="true" ctrlrange="-1 1"/>
   </default>

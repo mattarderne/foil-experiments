@@ -281,18 +281,17 @@ class PumpFoilEnvMJX:
         fuselage_len = 0.6
         M_stab = -L_stab_z * fuselage_len
 
-        # Weight
-        W = -self.total_mass * self.g
+        # NOTE: MuJoCo handles gravity - don't add W here
 
         # Leg force from knee velocity (reaction force)
         left_knee_vel = mjx_data.qvel[6]  # Approximate index
         right_knee_vel = mjx_data.qvel[7]
         avg_leg_vel = (left_knee_vel + right_knee_vel) / 2
-        leg_force = avg_leg_vel * 50
+        leg_force = avg_leg_vel * 20  # Reduced scaling
 
-        # Net forces
+        # Net forces (hydro only - MuJoCo adds gravity)
         Fx = Lx + Dx
-        Fz = Lz + Dz + W - leg_force + L_stab_z
+        Fz = Lz + Dz - leg_force + L_stab_z
 
         # Pump thrust
         pump_thrust = jnp.where(
