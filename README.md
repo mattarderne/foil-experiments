@@ -1,11 +1,13 @@
 # Pump Foil
 
-RL and motion capture for pump foil body mechanics.
+Tools and experiments for understanding and simulating pump foiling - the art of maintaining flight on a hydrofoil through rhythmic body movements.
 
-## Directories
+## Projects
 
-- `reinforcement-learning/` - RL system for learning pump foil technique
+### [foil-mocap/](foil-mocap/)
 
-## Status
+Extract body pose from pump foil videos using MediaPipe. Produces skeleton overlays, dot traces, and biomechanical features from any foil video.
 
-See `reinforcement-learning/MIGRATION.md` for current development plans.
+### [foil-rl-pump/](foil-rl-pump/)
+
+Reinforcement learning experiments teaching an agent to pump foil. Includes a working Python RL approach (60+ second sustained flights) and an exploratory MuJoCo approach.

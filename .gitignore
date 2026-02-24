@@ -4,17 +4,20 @@ __pycache__/
 venv*/
 .venv/
 
-# Archive (legacy code)
-archive/
-
-# Outputs
-*.mp4
-*.png
-*.gif
-*.zip
-*.npy
-
 # IDE
 .DS_Store
 .idea/
 .vscode/
+
+# Build
+*.egg-info/
+dist/
+build/
+
+# Old top-level files (not part of new structure)
+archive/
+CLAUDE.md
+MIGRATION.md
+foil_env/
+mujoco/
+venv_mujoco/
