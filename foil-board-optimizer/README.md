@@ -53,7 +53,7 @@ INNER LOOP (optimize.py, each run):
 ## Quick Start
 
 ```bash
-cd foil-board-optimizer
+cd projects/foil-board-optimizer
 pip install -r requirements.txt
 
 # Run a single experiment (baseline)
