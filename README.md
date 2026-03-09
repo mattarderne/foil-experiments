@@ -119,6 +119,11 @@ Modal spins up a machine, runs the simulation, and sends results back to your la
 
 ## Projects
 
+### [foil-design](foil-design/) — Hydrofoil wing optimization
+**Status:** planning
+
+Autonomous optimization of hydrofoil wing and stabilizer shapes using NeuralFoil (ML replacement for XFoil) and AeroSandbox (3D vortex lattice). Includes real Shape3D reference geometry from a K2 800 front wing and stabilizer. Optimizes profile shape, planform, and front-wing/stab interaction.
+
 ### [foil-board-optimizer](foil-board-optimizer/) — Board structure topology optimization
 **Status:** in-progress
 
