@@ -119,6 +119,11 @@ Modal spins up a machine, runs the simulation, and sends results back to your la
 
 ## Projects
 
+### [board-design](board-design/) — Conversational CAD for foil boards
+**Status:** planning
+
+A Claude Code session as a CAD collaborator. Describe what you want ("narrow the tail 3cm", "add more nose rocker") and Claude modifies the Shape3D file, shows a 3D preview, commits the change with rationale, and feeds the result into the FEA optimizer. Baseline design is a TT60 foil board by Tom Partington.
+
 ### [foil-design](foil-design/) — Hydrofoil wing optimization
 **Status:** planning
 
