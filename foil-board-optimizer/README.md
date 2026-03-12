@@ -1,10 +1,21 @@
 # Foil Board Internal Structure Optimizer
 
-> **Moved:** Active development continues at [mattarderne/foil-experiments](https://github.com/mattarderne/foil-experiments/tree/main/foil-board-optimizer). This copy is kept for reference.
+Topology optimization of a hydrofoil board's internal structure using FEA simulation.
+Places material where it structurally matters along the rider → deck → mast load path,
+producing a 3D-printable internal structure rather than a hollow shell.
 
-Autonomous topology optimization of hydrofoil board internal structures using
-FEA simulation and an AI-driven experimental outer loop, following the
-[Karpathy autoresearch](https://github.com/karpathy/autoresearch) pattern.
+## Results
+
+### Continuous internal structure (Phase 3 — marching cubes STL from 23 cross-sections)
+https://github.com/mattarderne/foil-experiments/raw/main/foil-board-optimizer/media/continuous-internal-structure.mp4
+
+### Optimized cross-section PNGs (Phase 2 — 2D SIMP at each bulkhead)
+https://github.com/mattarderne/foil-experiments/raw/main/foil-board-optimizer/media/cross-section-pngs.mp4
+
+### Interactive HTML viewer — load transfer + safety factor overlay (Phase 1)
+https://github.com/mattarderne/foil-experiments/raw/main/foil-board-optimizer/media/viewer-board-blocks.mp4
+
+---
 
 ## Problem
 
@@ -23,91 +34,69 @@ structure that:
 - Is 3D-printable (exports STL)
 - Optimizes in full 3D (not just 2D cross-sections)
 
-## Architecture: autoresearch Pattern
+## Pipeline
 
-Following Karpathy's autoresearch, the system has a clean separation:
+Three phases, each building on the last:
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│  program.md     — research strategy (human modifies)     │
-│  optimize.py    — experiment code (agent modifies)       │
-│  results.tsv    — experiment log (append-only)           │
-└──────────────────────────────────────────────────────────┘
+Phase 1 — 3D bulkhead SIMP (modal_run.py)
+  ↓ 56×20×12 hex mesh, X-column design vars, finds transverse rib positions
+  ↓ Output: density.bin, strain_energy per load case, meta.json
 
-OUTER LOOP (Claude Code, autonomous):
-  1. Read program.md for strategy
-  2. Read results.tsv for past experiments
-  3. Form hypothesis
-  4. Modify optimize.py (parameters, approach)
-  5. Run: python optimize.py  (~5 min per experiment)
-  6. Evaluate: if compliance improved → KEEP, else → REVERT
-  7. Commit kept improvements
-  8. Repeat forever (the human might be asleep)
+Phase 2 — 2D cross-section SIMP (run_cross_sections.py)
+  ↓ 100×30 Q4 mesh at each X-slice, load-weighted from Phase 1 strain energy
+  ↓ Board-shape-aware inside/shell masks, mast zone loads
+  ↓ Output: density_x{pos}.npy, section_x{pos}.png per slice
 
-INNER LOOP (optimize.py, each run):
-  1. Generate 3D hex mesh of board
-  2. Apply rider loads + mast mount BCs
-  3. SIMP topology optimization (iterative FEA)
-  4. Log compliance/stiffness to results.tsv
-  5. Export STL for 3D printing
+Phase 3 — 3D assembly (build_3d_structure.py)
+  ↓ Stack slices → linear interpolation → marching cubes
+  ↓ Output: structure.stl (watertight, 3D-printable), structure_overview.png
 ```
 
 ## Quick Start
 
 ```bash
-cd projects/foil-board-optimizer
 pip install -r requirements.txt
 
-# Run a single experiment (baseline)
-python optimize.py
+# Phase 1: 3D coarse SIMP on Modal (finds bulkhead positions)
+python modal_run.py --nelx 56 --nely 20 --nelz 12 --max-iter 100 \
+  --target-mass 8.0 --output results/run1
 
-# View results
-cat results.tsv
+# Phase 1 bulkhead mode (X-column vars, cleaner plate results)
+python modal_run.py --bulkhead-mode --bulkhead-xmin 0.65 --bulkhead-xmax 1.31 \
+  --output results/bulkhead
 
-# Launch Claude Code as autonomous researcher
-# (point it at program.md and let it run overnight)
-```
+# Phase 2: 2D cross-sections at all active slices
+python run_cross_sections.py --phase1 results/bulkhead \
+  --xmin 0.65 --xmax 1.31 --nely 100 --nelz 30 --volfrac 0.30 \
+  --output results/cross_sections
 
-## Autonomous Research Mode
+# Phase 3: assemble into continuous 3D STL
+python build_3d_structure.py --cross-sections results/cross_sections
 
-Launch Claude Code in this directory and tell it:
-> "Read program.md and start optimizing. Run experiments autonomously."
-
-Claude Code will:
-1. Read `program.md` for the research strategy
-2. Check `results.tsv` for the current best compliance
-3. Modify parameters in `optimize.py`
-4. Run the experiment, evaluate, keep/revert
-5. Loop indefinitely, exploring the parameter space
-
-The agent has freedom to try different mesh resolutions, SIMP parameters,
-load case combinations, Heaviside projection, continuation methods, etc.
-
-## Programmatic Research Mode
-
-For scripted multi-experiment campaigns without Claude Code:
-
-```bash
-# Run the built-in auto-researcher (exploration → refinement → validation)
-python -m foilopt research --max-experiments 30 --per-generation 4
+# Build interactive HTML viewer
+python build_viewer.py results/bulkhead
+open viewer.html
 ```
 
 ## Key Files
 
-| File | Who modifies | Purpose |
-|------|-------------|---------|
-| `program.md` | Human | Research strategy and agent instructions |
-| `optimize.py` | Agent | Experiment configuration (the knobs) |
-| `results.tsv` | Append-only | All experiment results (never delete) |
-| `foilopt/` | Nobody | Core optimization library |
+| File | Purpose |
+|------|---------|
+| `modal_run.py` | Phase 1: run 3D SIMP on Modal cloud |
+| `run_cross_sections.py` | Phase 2: run 2D SIMP at each bulkhead X-slice |
+| `build_3d_structure.py` | Phase 3: interpolate slices → watertight STL |
+| `build_viewer.py` | Build interactive HTML viewer from Phase 1 results |
+| `foilopt/topology/simp.py` | 3D SIMP optimizer (hex elements, bulkhead mode) |
+| `foilopt/topology/cross_section.py` | 2D SIMP optimizer (Q4 plane-stress) |
+| `foilopt/fea/solver.py` | FEA solver, board-shape-aware BCs |
+| `foilopt/geometry/board.py` | FoilBoard geometry, BoardShape (.s3dx parser) |
 
 ## Key Modules
 
 - `foilopt/geometry/` — Board shape, mast mount zones, hex mesh generation
 - `foilopt/fea/` — 8-node hex element stiffness, sparse assembly, linear solver
-- `foilopt/topology/` — SIMP optimizer, density filters, Heaviside projection
-- `foilopt/ml/` — Neural surrogate model, U-Net topology predictor (PyTorch)
-- `foilopt/harness/` — Programmatic auto-researcher with persistent state
+- `foilopt/topology/` — 3D SIMP + 2D cross-section SIMP, density filters
 - `foilopt/utils/` — STL export, 3D voxel visualization, convergence plots
 
 ## Physics
@@ -115,8 +104,8 @@ python -m foilopt research --max-experiments 30 --per-generation 4
 The board is modeled as a 3D domain with:
 - **Deck surface** (top): rider applies downward force in the foot zone
 - **Mast mount** (bottom center): fixed boundary where foil mast bolts through
-- **Load cases**: normal riding, pumping, jump landing, carving turns
+- **Load cases**: normal riding (1g), pumping (1.5g), jump landing (2.5g), carving turn
 
 The SIMP optimizer places material where it's structurally needed along the
 load path from deck to mast, and removes it elsewhere — creating internal
-ribs, lattices, and channels rather than a simple hollow shell.
+ribs, webs, and lightening holes rather than a simple hollow shell.

@@ -159,3 +159,31 @@ def hex8_stiffness_matrix(
                 Ke += w * (B.T @ C @ B) * detJ
 
     return Ke
+
+
+def hex8_B_centroid(dx: float, dy: float, dz: float) -> np.ndarray:
+    """Strain-displacement matrix B evaluated at the element centroid (xi=eta=zeta=0).
+
+    Used for stress recovery after FEA solve.
+
+    Returns:
+        (6, 24) B matrix mapping element DOFs to strain vector
+        [εxx, εyy, εzz, γxy, γyz, γzx].
+    """
+    Jinv = np.diag([2.0 / dx, 2.0 / dy, 2.0 / dz])
+    dN_nat = shape_function_derivatives(0.0, 0.0, 0.0)  # (3, 8)
+    dN_phys = Jinv @ dN_nat  # (3, 8)
+
+    B = np.zeros((6, 24))
+    for node in range(8):
+        col = 3 * node
+        dNx = dN_phys[0, node]
+        dNy = dN_phys[1, node]
+        dNz = dN_phys[2, node]
+        B[0, col]     = dNx
+        B[1, col + 1] = dNy
+        B[2, col + 2] = dNz
+        B[3, col]     = dNy;  B[3, col + 1] = dNx
+        B[4, col + 1] = dNz;  B[4, col + 2] = dNy
+        B[5, col]     = dNz;  B[5, col + 2] = dNx
+    return B

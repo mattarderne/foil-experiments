@@ -8,12 +8,12 @@ weighting for topology optimization.
 
 import numpy as np
 from scipy import sparse
-from scipy.sparse.linalg import spsolve, cg
+from scipy.sparse.linalg import spsolve, cg, spilu, LinearOperator
 from typing import Optional, Tuple
 import time
 
 from ..geometry.mesh import HexMesh
-from ..geometry.board import FoilBoard, LoadCase
+from ..geometry.board import FoilBoard, LoadCase, BoardShape
 from .element import hex8_stiffness_matrix
 
 
@@ -30,16 +30,21 @@ class FEASolver3D:
         Emin: Minimum Young's modulus for void elements (Pa).
         nu: Poisson's ratio.
         penal: SIMP penalization exponent.
+        board_shape: Optional BoardShape for deck-surface-aware BC application.
+        use_gpu: Use cupy GPU solver if available.
     """
 
     def __init__(
         self,
         mesh: HexMesh,
         board: FoilBoard,
-        E0: float = 2.0e9,    # ~PETG/nylon for 3D printing
-        Emin: float = 1e-9,
+        E0: float = 20.0e9,   # fiberglass
+        Emin: float = 50.0e6,  # EPS foam background stiffness
         nu: float = 0.35,
         penal: float = 3.0,
+        sigma_yield: float = 200.0e6,
+        board_shape: Optional[BoardShape] = None,
+        use_gpu: bool = False,
     ):
         self.mesh = mesh
         self.board = board
@@ -47,6 +52,10 @@ class FEASolver3D:
         self.Emin = Emin
         self.nu = nu
         self.penal = penal
+        self.sigma_yield = sigma_yield
+        self.board_shape = board_shape
+        self.use_gpu = use_gpu
+        self._use_amg = use_gpu  # ILU-CG path: fast for large meshes on GPU nodes
 
         # Pre-compute unit element stiffness matrix (E=1)
         self.Ke0 = hex8_stiffness_matrix(mesh.dx, mesh.dy, mesh.dz, E=1.0, nu=nu)
@@ -84,32 +93,67 @@ class FEASolver3D:
         fixed_dofs = []
 
         # --- Fixed BCs: mast mount region on bottom face ---
-        bottom_mask = np.isclose(nodes[:, 2], 0.0, atol=mesh.dz * 0.1)
+        # Always expand by one element width to capture nodes on both sides of the
+        # narrow Twin Track (9cm span). Without this, only Y=center nodes are
+        # selected (dy≈5cm vs 9cm track spacing), leaving the mast column with a
+        # collinear set of fixed nodes that cannot resist X-axis torsion.
+        bottom_mask = nodes[:, 2] < mesh.dz * 0.5
         mast_mask = board.is_in_mast_mount(nodes[:, 0], nodes[:, 1])
-        fixed_nodes = np.where(bottom_mask & mast_mask)[0]
+        expanded = board.is_in_mast_mount_expanded(
+            nodes[:, 0], nodes[:, 1], margin=max(mesh.dx, mesh.dy)
+        )
+        fixed_nodes = np.where(bottom_mask & expanded)[0]
+
+        # Fallback: plain mast mask if expansion somehow yields nothing
+        if len(fixed_nodes) < 4:
+            fixed_nodes = np.where(bottom_mask & mast_mask)[0]
 
         for n in fixed_nodes:
             fixed_dofs.extend([3 * n, 3 * n + 1, 3 * n + 2])
 
-        # --- Deck load: rider weight distributed over foot zone ---
-        top_mask = np.isclose(nodes[:, 2], board.thickness, atol=mesh.dz * 0.1)
-        foot_mask = board.is_in_foot_zone(nodes[:, 0], nodes[:, 1])
-        loaded_nodes = np.where(top_mask & foot_mask)[0]
+        # --- Deck load: rider weight split between front and back foot ---
+        # Use board_shape to find the actual deck surface in optimizer coords.
+        # Without this, top-face nodes (z=thickness) connect only to void elements
+        # that are above the curved deck at most X positions → near-zero stiffness.
+        if self.board_shape is not None:
+            lz = board.thickness
+            deck_z_s3d = self.board_shape.deck_z_at(nodes[:, 0])
+            deck_z_opt = deck_z_s3d / self.board_shape.z_max * lz
+            # Nodes within [deck_z - 1.5*dz, deck_z + 0.5*dz] are on/near deck surface
+            top_mask = (
+                (nodes[:, 2] > deck_z_opt - mesh.dz * 1.5)
+                & (nodes[:, 2] <= deck_z_opt + mesh.dz * 0.5)
+            )
+        else:
+            top_mask = nodes[:, 2] > board.thickness - mesh.dz * 0.5
 
-        if len(loaded_nodes) > 0:
-            total_force = load_case.get_deck_force_total()
-            force_per_node = total_force / len(loaded_nodes)
-            for n in loaded_nodes:
-                f[3 * n + 2] -= force_per_node  # downward Z force
+        total_force = load_case.get_deck_force_total()
+        front_force = total_force * board.front_foot_weight
+        back_force = total_force * (1.0 - board.front_foot_weight)
+
+        front_nodes = np.where(top_mask & board.is_in_front_foot(nodes[:, 0], nodes[:, 1]))[0]
+        back_nodes = np.where(top_mask & board.is_in_back_foot(nodes[:, 0], nodes[:, 1]))[0]
+
+        if len(front_nodes) > 0:
+            fpn = front_force / len(front_nodes)
+            for n in front_nodes:
+                f[3 * n + 2] -= fpn
+        if len(back_nodes) > 0:
+            fpn = back_force / len(back_nodes)
+            for n in back_nodes:
+                f[3 * n + 2] -= fpn
 
         # --- Mast forces at mount region ---
-        # Apply mast forces distributed over deck nodes above the mast mount.
-        # Since the mount bottom is fixed, we apply the mast reaction forces
-        # on the top-face nodes above the mast mount to create the load path
-        # through the board thickness.
+        # The foil pushes UP through the mast into the board. The mast_force
+        # in the LoadCase is defined as the hydrodynamic force on the foil
+        # (e.g. Fz=-785 means lift pulling down on the water side).
+        # At the board, the reaction is OPPOSITE: the mast pushes the board
+        # UP and forward. We apply -mast_force on deck nodes above the mount
+        # to create the correct load path through the board thickness.
         top_mast_nodes = np.where(top_mask & mast_mask)[0]
         if len(top_mast_nodes) > 0 and load_case.mast_force is not None:
-            mf = np.asarray(load_case.mast_force)
+            # Negate: hydrodynamic force → board reaction
+            mf = -np.asarray(load_case.mast_force)
             force_per_node = mf / len(top_mast_nodes)
             for n in top_mast_nodes:
                 f[3 * n] += force_per_node[0]
@@ -210,7 +254,21 @@ class FEASolver3D:
 
         # Solve
         t_solve = time.time()
-        if use_direct:
+        if self._use_amg:
+            # ILU-preconditioned CG: robust for heterogeneous 3D FEA (no AMG
+            # coarsening singularity from void exterior). fill_factor=3 gives good
+            # preconditioning while keeping memory bounded. rtol=1e-4 is tight
+            # enough for sensitivity accuracy in topology optimization.
+            K_csr = K_free.tocsr()
+            ilu = spilu(K_csr, fill_factor=3, drop_tol=1e-4)
+            M_ilu = LinearOperator(K_csr.shape, ilu.solve)
+            u_free, cg_info = cg(K_csr, f_free, M=M_ilu, rtol=1e-4, maxiter=600)
+            if cg_info > 0:
+                print(f"  ILU-CG: hit maxiter ({cg_info}), result may be approximate")
+            elif cg_info < 0:
+                print(f"  ILU-CG failed (info={cg_info}), falling back to direct")
+                u_free = spsolve(K_free, f_free)
+        elif use_direct:
             u_free = spsolve(K_free, f_free)
         else:
             u_free, cg_info = cg(K_free, f_free, tol=1e-8, maxiter=5000)
@@ -246,6 +304,45 @@ class FEASolver3D:
         # ce[e] = Ue[e] @ Ke0 @ Ue[e] = sum over (Ue @ Ke0) * Ue
         ce = np.sum((Ue @ self.Ke0) * Ue, axis=1)
         return ce
+
+    def compute_element_stress(
+        self, density: np.ndarray, u: np.ndarray
+    ) -> tuple:
+        """Compute element centroid stress and von Mises stress.
+
+        Args:
+            density: (N_elements,) element densities.
+            u: (ndof,) displacement vector.
+
+        Returns:
+            (sigma, vm): sigma is (N_elements, 6) stress tensor
+            [σxx, σyy, σzz, τxy, τyz, τzx]; vm is (N_elements,) von Mises stress.
+        """
+        from .element import hex8_B_centroid, constitutive_matrix
+
+        B = hex8_B_centroid(self.mesh.dx, self.mesh.dy, self.mesh.dz)  # (6, 24)
+        C_unit = constitutive_matrix(1.0, self.nu)  # constitutive matrix at unit E
+
+        E_elem = self.Emin + density ** self.penal * (self.E0 - self.Emin)
+
+        # Element displacements: (n_elem, 24)
+        Ue = u[self.edof]
+
+        # Strain at centroid: ε = B @ u_e  →  (n_elem, 6)
+        eps = Ue @ B.T
+
+        # Stress: σ = E_e * C_unit @ ε  →  (n_elem, 6)
+        sigma = E_elem[:, None] * (eps @ C_unit.T)
+
+        # Von Mises stress
+        s = sigma
+        vm = np.sqrt(0.5 * (
+            (s[:, 0] - s[:, 1]) ** 2
+            + (s[:, 1] - s[:, 2]) ** 2
+            + (s[:, 2] - s[:, 0]) ** 2
+        ) + 3.0 * (s[:, 3] ** 2 + s[:, 4] ** 2 + s[:, 5] ** 2))
+
+        return sigma.astype(np.float32), vm.astype(np.float32)
 
     def compute_stiffness_metric(
         self, density: np.ndarray, load_cases: list
