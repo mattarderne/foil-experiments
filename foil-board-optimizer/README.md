@@ -55,19 +55,28 @@ Phase 3 — 3D assembly (build_3d_structure.py)
 
 ## Next Steps
 
-### 1. Full-resolution Phase 2 on Modal *(most immediate)*
-Cross-sections ran at 100×30 (5mm×4mm elements) — coarse enough to lose thin ribs and arch details. At 200×60 (2.5mm×2mm) you get genuine fine-grain topology: thin-wall ribs, true lightening holes, diagonal tension members. Parallelize all 23 slices as simultaneous Modal remote calls rather than running sequentially.
+The current architecture (Phase 1 coarse 3D → Phase 2 cross-section refinement → Phase 3 continuous interpolation → Phase 4 complete board) is sound. The next steps are about feeding better physics into that pipeline and validating the assembled result structurally — not changing the architecture.
 
-### 2. Extend beyond the foot zone
-Active zone is currently X=0.65–1.31m. The nose and tail are hollow. At low volfrac (10–15%), running Phase 2 on the full board length adds structural contribution — especially the tail block (mast track) and nose (impact loads).
+### 1. Re-run Phase 1 with richer load model *(immediate)*
+PR #2 (merged) added explicit per-foot 3D force vectors, two new load cases (front/back foot drive), and objective weights. Re-run Phase 1 on Modal to get updated strain energy maps that reflect asymmetric rider loading. The new maps will drive Phase 2 cross-sections more deliberately — slices under front-foot drive vs back-foot drive will get different internal layouts.
 
-### 3. Manufacturability constraints
-- Minimum member thickness (slicer floor for nozzle diameter)
-- Maximum overhang angle (avoid internal supports)
-- Infill-to-shell bond points (print adhesion)
+### 2. Let richer Phase 1 drive Phase 2 more deliberately
+The current Phase 1 → Phase 2 handoff uses scalar strain energy per slice to scale deck force. With explicit per-foot force vectors now in the metadata, Phase 2 can inherit the actual foot-patch geometry and direction at each X position — not just a magnitude. Cross-sections near the front foot should optimise differently from those near the back foot.
 
-### 4. Fiber-reinforced shell + printed core hybrid
-3D-printed internal lattice in carbon-filled nylon or PETG, wrapped with prepreg carbon outside. Currently shell and core use the same material model. Separating them (shell E=70GPa carbon, core E=5GPa print material) would change the load path and likely open the core topology more aggressively.
+### 3. 3D validation of the assembled continuous structure
+Interpolation between cross-sections is not the last structural word. After assembling the continuous volume, run a final 3D FEA pass on the assembled geometry to check actual structural adequacy, find weak spots in the interpolated regions between slices, and confirm the load paths are intact end-to-end. This closes the loop between Phase 2 and the assembled Phase 3/4 output.
+
+### 4. Full-resolution Phase 2 on Modal
+Cross-sections are currently at 100×30 (5mm×4mm). At 200×60 (2.5mm×2mm) you get genuine fine-grain ribs, true lightening holes, diagonal tension members. Parallelize all slices as simultaneous Modal remote calls.
+
+### 5. Extend beyond the foot zone
+Active zone is X=0.65–1.31m. Running Phase 2 at low volfrac (10–15%) on the full board length adds structural contribution at the tail block (mast track) and nose (impact loads).
+
+### 6. Manufacturability constraints
+Minimum member thickness, maximum overhang angle, infill-to-shell bond points — as post-processing filters or additional SIMP constraints.
+
+### 7. Fiber-reinforced shell + printed core hybrid
+Separate material models for shell (carbon, E=70GPa) and core (printed nylon/PETG, E=5GPa). The core topology would open up more aggressively and route loads differently.
 
 ---
 

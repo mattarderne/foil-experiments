@@ -11,43 +11,56 @@
 
 ## Next Steps
 
-### 1. Full-resolution Phase 2 on Modal *(most immediate)*
+The architecture is sound. Next steps are about better physics feeding the pipeline and closing the structural validation loop — not changing the phase structure.
 
-The cross-sections ran at 100×30 (5mm×4mm elements) — coarse enough that you lose thin ribs and arch details. At 200×60 (2.5mm×2mm) you'd get genuine fine-grain topology: thin-wall ribs, true lightening holes, diagonal tension members. That's the resolution where it starts looking like a Divergent Technologies print.
+### 1. Re-run Phase 1 with richer load model *(immediate)*
 
-Run Phase 2 on Modal the same way Phase 1 runs — parallelize all 23 slices simultaneously rather than sequentially.
+PR #2 (merged) added explicit per-foot 3D force vectors, two new load cases (`front_foot_drive`, `back_foot_drive`), objective weights, and mast torque application. Re-run Phase 1 on Modal to get updated strain energy maps under asymmetric rider loading.
 
-- [ ] Add Modal function to `run_cross_sections.py` that fans out slices as parallel remote calls
+- [ ] `python modal_run.py --bulkhead-mode --bulkhead-xmin 0.65 --bulkhead-xmax 1.31 --rider-kg 85`
+- [ ] Compare new strain energy map — expect stronger front/back asymmetry
+
+### 2. Let richer Phase 1 drive Phase 2 more deliberately
+
+Currently Phase 1 → Phase 2 passes only scalar strain energy per slice. With explicit foot-patch geometry and direction now in metadata, Phase 2 can inherit per-foot vector loads at each X position.
+
+- [ ] In `run_cross_sections.py`, read `front_foot_force` / `back_foot_force` from meta per load case
+- [ ] Pass directional loads to `CrossSectionOptimizer` alongside deck force magnitude
+- [ ] Cross-sections near front foot vs back foot should show different topologies
+
+### 3. 3D validation of the assembled continuous structure
+
+Interpolation between cross-sections is not the last structural word. After assembling the continuous volume, run a 3D FEA pass to check adequacy, find weak spots in interpolated regions, confirm load paths are intact end-to-end.
+
+- [ ] Load `complete_board_volume.npy`, assemble stiffness from solid voxels
+- [ ] Apply Phase 1 load cases to the assembled geometry
+- [ ] Map compliance back onto the volume for visualisation
+- [ ] Flag high-compliance interpolated regions as candidates for additional slices
+
+### 4. Full-resolution Phase 2 on Modal
+
+Cross-sections at 100×30 lose thin ribs. At 200×60 (2.5mm×2mm): genuine thin-wall ribs, lightening holes, diagonal tension members.
+
+- [ ] Add Modal function to `run_cross_sections.py` — fan out all slices as parallel remote calls
 - [ ] Run at `--nely 200 --nelz 60 --max-iter 150`
-- [ ] Rebuild complete board with high-res cross-sections
-
-### 2. ~~Merge internal structure with outer shell~~ ✓ Done
-
-`build_complete_board.py` handles this — outer shell + internal structure in one STL, both discrete-plate and continuous modes.
-
-### 3. Extend beyond the foot zone
-
-Active zone is currently X=0.65–1.31m (under-foot). Nose and tail are hollow. At low volfrac (10–15%), running Phase 2 on the full board would add structural contribution — especially the tail block where the mast track is, and the nose which takes impact loads.
-
-- [ ] Run `run_cross_sections.py` with `--xmin 0 --xmax 1.64` (full board)
-- [ ] Use lower `--volfrac 0.12` outside the foot zone
 - [ ] Rebuild complete board
 
-### 4. Manufacturability constraints
+### 5. ~~Merge internal structure with outer shell~~ ✓ Done
 
-- [ ] Minimum member thickness — so slicer doesn't thin features below nozzle diameter
-- [ ] Maximum overhang angle — avoid supports inside the board cavity
-- [ ] Infill connection points — ensure internal structure bonds to shell (print adhesion)
+`build_complete_board.py` — outer shell + internal structure, discrete-plate and continuous modes.
 
-These can be implemented as post-processing filters on the density field before marching cubes, or as additional constraints in the SIMP loop.
+### 6. Extend beyond the foot zone
 
-### 5. Fiber-reinforced shell + printed core hybrid
+- [ ] `run_cross_sections.py --xmin 0 --xmax 1.64 --volfrac 0.12` (full board at lower fill)
+- [ ] Rebuild complete board
 
-The interesting product design: 3D-printed internal lattice in carbon-filled nylon or PETG, wrapped with prepreg carbon on the outside. The optimizer currently treats shell and core as the same material. Separating them (shell = high-stiffness carbon E=70GPa, core = moderate-stiffness print E=5GPa) would change the load path significantly — the core topology would likely open up more aggressively and route loads differently.
+### 7. Manufacturability constraints
 
-- [ ] Add dual-material mode to `CrossSectionConfig`: separate `E0_shell` and `E0_core`
-- [ ] Shell elements use high E, free elements use print material E
-- [ ] Re-run and compare topology against current single-material result
+- [ ] Minimum member thickness, maximum overhang angle, infill-to-shell bond points
+
+### 8. Fiber-reinforced shell + printed core hybrid
+
+- [ ] Dual-material `CrossSectionConfig`: `E0_shell` (carbon 70GPa) vs `E0_core` (print 5GPa)
 
 ---
 
