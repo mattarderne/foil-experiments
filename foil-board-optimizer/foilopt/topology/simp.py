@@ -446,11 +446,12 @@ class SIMPOptimizer:
             for lc in load_cases:
                 u, info = self.solver.solve(xPhys, lc)
                 ce = self.solver.compute_element_compliance(xPhys, u)
+                weight = float(getattr(lc, "objective_weight", 1.0))
                 dc_lc = -config.penal * xPhys ** (config.penal - 1) * (
                     self.solver.E0 - self.solver.Emin
                 ) * ce
-                total_compliance += info["compliance"]
-                dc += dc_lc
+                total_compliance += weight * info["compliance"]
+                dc += weight * dc_lc
 
             # MaxSolid is intentionally skipped in bulkhead mode: a filled slice IS
             # a solid plate by design, so the local-density upper bound would penalise
@@ -553,14 +554,15 @@ class SIMPOptimizer:
             for lc in load_cases:
                 u, info = self.solver.solve(xPhys, lc)
                 ce = self.solver.compute_element_compliance(xPhys, u)
+                weight = float(getattr(lc, "objective_weight", 1.0))
 
                 # Sensitivity of compliance w.r.t. density
                 dc_lc = -config.penal * xPhys ** (config.penal - 1) * (
                     self.solver.E0 - self.solver.Emin
                 ) * ce
 
-                total_compliance += info["compliance"]
-                dc += dc_lc
+                total_compliance += weight * info["compliance"]
+                dc += weight * dc_lc
 
             # MaxSolid penalty: penalise local density averages above alpha.
             # Use only FREE element densities in the H_max average so forced-solid
