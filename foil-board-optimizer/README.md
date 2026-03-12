@@ -102,9 +102,10 @@ open viewer.html
 ## Physics
 
 The board is modeled as a 3D domain with:
-- **Deck surface** (top): rider applies downward force in the foot zone
+- **Deck surface** (top): rider applies explicit front-foot and back-foot force vectors
 - **Mast mount** (bottom center): fixed boundary where foil mast bolts through
-- **Load cases**: normal riding (1g), pumping (1.5g), jump landing (2.5g), carving turn
+- **Load cases**: normal riding, pumping, jump landing, carving, front-foot drive, back-foot drive
+- **Mast loading**: force and equivalent nodal torque at the foil box patch
 
 The SIMP optimizer places material where it's structurally needed along the
 load path from deck to mast, and removes it elsewhere — creating internal

@@ -56,7 +56,14 @@ def compute_slice_loads(strain_energy_dir: str, meta: dict):
 
     load_cases = [lc["name"] for lc in meta.get("load_cases", [])]
     if not load_cases:
-        load_cases = ["riding_normal", "pumping", "jump_landing", "carving"]
+        load_cases = [
+            "riding_normal",
+            "pumping",
+            "jump_landing",
+            "carving",
+            "front_foot_drive",
+            "back_foot_drive",
+        ]
 
     for name in load_cases:
         path = os.path.join(strain_energy_dir, f"{name}.bin")
@@ -76,6 +83,21 @@ def load_mean_mast_force(meta: dict):
     if not forces:
         return np.array([0.0, 0.0, -785.0])
     return np.mean(forces, axis=0)
+
+
+def load_peak_vertical_deck_force(meta: dict) -> float:
+    """Return the largest downward deck load magnitude across all load cases."""
+    peak = 0.0
+    for lc in meta.get("load_cases", []):
+        if lc.get("front_foot_force") is not None or lc.get("back_foot_force") is not None:
+            front = np.asarray(lc.get("front_foot_force") or [0.0, 0.0, 0.0], dtype=float)
+            back = np.asarray(lc.get("back_foot_force") or [0.0, 0.0, 0.0], dtype=float)
+            peak = max(peak, abs(front[2]) + abs(back[2]))
+        elif lc.get("total_force") is not None:
+            peak = max(peak, float(lc["total_force"]))
+    if peak > 0:
+        return float(peak)
+    return 2200.0
 
 
 def plot_result(result, out_path: str, title: str = ""):
@@ -187,17 +209,9 @@ def main():
         print(f"\nStrain energy loaded. Max at slice "
               f"{np.argmax(slice_se)} (X={((np.argmax(slice_se)+0.5)*meta['lx']/meta['nelx']):.3f}m)")
 
-    # Base deck force: total rider weight distributed over board, scaled per slice
-    # A 90kg rider at 2.5g jump landing = ~2200N total deck force
-    base_total_force = meta.get("load_cases", [{}])[0].get("total_force", 2200.0)
-    # Fallback: derive from first load case mast_force
-    if meta.get("load_cases"):
-        # Use jump_landing if present (highest load)
-        for lc in meta["load_cases"]:
-            if "jump" in lc["name"]:
-                fz = abs(lc["mast_force"][2]) if lc.get("mast_force") else 2200.0
-                base_total_force = fz * 2.0  # rider weight = ~2× foil lift at landing
-                break
+    # Base deck force for 2D slice refinement comes from the largest explicit
+    # downward rider load seen in Phase 1, then gets scaled by local strain energy.
+    base_total_force = load_peak_vertical_deck_force(meta)
 
     # Mast force for slices in mast zone
     mast_bounds = meta.get("mast_bounds", [0, 0, 0, 0])

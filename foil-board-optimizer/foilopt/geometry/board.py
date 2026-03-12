@@ -61,7 +61,13 @@ class LoadCase:
             or a scalar for uniform pressure.
         mast_force: Force vector [Fx, Fy, Fz] at mast mount (N).
         mast_torque: Torque vector [Tx, Ty, Tz] at mast mount (N·m).
-        weight_rider_kg: Rider weight used to derive deck_pressure if not set.
+        weight_rider_kg: Rider weight used to derive deck loads if direct
+            per-foot forces are not provided.
+        front_foot_fraction: Fraction of the rider load carried by the front
+            foot when direct per-foot forces are not specified.
+        front_foot_force: Explicit [Fx, Fy, Fz] force at the front foot patch.
+        back_foot_force: Explicit [Fx, Fy, Fz] force at the back foot patch.
+        objective_weight: Relative importance in the multi-case objective.
     """
 
     name: str = "standing"
@@ -69,9 +75,25 @@ class LoadCase:
     mast_force: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, -785.0]))
     mast_torque: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
     weight_rider_kg: float = 85.0
+    front_foot_fraction: Optional[float] = None
+    front_foot_force: Optional[np.ndarray] = None
+    back_foot_force: Optional[np.ndarray] = None
+    objective_weight: float = 1.0
 
     def get_deck_force_total(self) -> float:
-        """Total downward force from rider (N)."""
+        """Total downward rider force magnitude (N)."""
+        if self.front_foot_force is not None or self.back_foot_force is not None:
+            front = (
+                np.asarray(self.front_foot_force, dtype=float)
+                if self.front_foot_force is not None
+                else np.zeros(3)
+            )
+            back = (
+                np.asarray(self.back_foot_force, dtype=float)
+                if self.back_foot_force is not None
+                else np.zeros(3)
+            )
+            return float(abs(front[2]) + abs(back[2]))
         return self.weight_rider_kg * GRAVITY
 
 
@@ -187,19 +209,7 @@ def create_default_load_cases(
     rider_kg: float = 85.0,   # from Shape3d TT60 design
     foil: Optional[FoilSetup] = None,
 ) -> list:
-    """Create load cases derived from actual foil physics.
-
-    Forces at the mast base are calculated from:
-    - Wing/stab lift balancing rider weight
-    - Hydrodynamic drag through the mast
-    - Lever arms from mast length, fuselage geometry
-    - Dynamic multipliers for each scenario
-
-    Reference setup: 80kg rider, 80cm mast, 800cm² wing, 80cm fuse, 130cm² stab.
-
-    Returns:
-        List of LoadCase objects covering typical riding scenarios.
-    """
+    """Create rider-to-foil-box transfer load cases with explicit foot forces."""
     if foil is None:
         foil = FoilSetup()
 
@@ -225,78 +235,63 @@ def create_default_load_cases(
     pitch_moment_cruise = W * foil.wing_aft_offset  # ~79 Nm
 
     cases = [
-        # --- Normal riding at cruise speed ---
-        # Rider weight on deck, mast transmits lift + drag + pitch moment
-        # Mast force at board: drag forward (X), lift pulling up on bottom
-        # but board sees it as downward load on deck above mount
         LoadCase(
             name="riding_normal",
             weight_rider_kg=rider_kg,
-            mast_force=np.array([
-                total_drag,         # ~50N forward (drag transmitted up mast)
-                0.0,                # no lateral
-                -W,                 # wing lift = rider weight
-            ]),
-            mast_torque=np.array([
-                0.0,
-                pitch_moment_cruise,  # ~79 Nm pitch (nose-up from wing offset)
-                0.0,
-            ]),
+            front_foot_force=np.array([0.05 * W, 0.0, -0.38 * W]),
+            back_foot_force=np.array([0.10 * W, 0.0, -0.62 * W]),
+            mast_force=np.array([total_drag, 0.0, -W]),
+            mast_torque=np.array([0.0, pitch_moment_cruise, 0.0]),
+            objective_weight=1.0,
         ),
-
-        # --- Pumping (dynamic, peak forces) ---
-        # During pump stroke, rider generates 1.5-2x body weight peaks
-        # Increased pitch moment from aggressive angle changes
         LoadCase(
             name="pumping",
-            weight_rider_kg=rider_kg * 1.5,  # 1.5g peak during pump
-            mast_force=np.array([
-                total_drag * 0.7,   # lower speed during pump
-                0.0,
-                -W * 1.8,           # peak lift during pump downstroke
-            ]),
-            mast_torque=np.array([
-                0.0,
-                pitch_moment_cruise * 3.0,  # ~240 Nm: aggressive pitch cycling
-                0.0,
-            ]),
+            weight_rider_kg=rider_kg * 1.6,
+            front_foot_force=np.array([0.18 * W, 0.0, -0.48 * W]),
+            back_foot_force=np.array([0.30 * W, 0.0, -1.12 * W]),
+            mast_force=np.array([total_drag * 0.7, 0.0, -W * 1.8]),
+            mast_torque=np.array([0.0, pitch_moment_cruise * 3.0, 0.0]),
+            objective_weight=1.2,
         ),
-
-        # --- Jump landing ---
-        # Impact load: 3-4g on landing
-        # Mostly vertical, minimal lateral
         LoadCase(
             name="jump_landing",
-            weight_rider_kg=rider_kg * 3.5,  # 3.5g impact
-            mast_force=np.array([
-                0.0,                # no forward speed at impact
-                0.0,
-                -W * 3.5,           # impact through mast
-            ]),
-            mast_torque=np.array([
-                0.0,
-                pitch_moment_cruise * 0.5,  # reduced (no speed)
-                0.0,
-            ]),
+            weight_rider_kg=rider_kg * 3.0,
+            front_foot_force=np.array([0.0, 0.0, -1.35 * W]),
+            back_foot_force=np.array([0.0, 0.0, -1.65 * W]),
+            mast_force=np.array([0.0, 0.0, -W * 3.5]),
+            mast_torque=np.array([0.0, pitch_moment_cruise * 0.5, 0.0]),
+            objective_weight=1.35,
         ),
-
-        # --- Hard carve / turn ---
-        # Lateral loading from banked turn, ~30-40 degree lean
-        # Lateral force ≈ W * tan(35°) ≈ 550N
-        # Creates roll moment through 80cm mast
         LoadCase(
             name="carving",
-            weight_rider_kg=rider_kg * 1.2,  # slight increase in apparent weight
-            mast_force=np.array([
-                total_drag * 1.5,   # increased drag in turn
-                W * 0.7,            # ~550N lateral (tan 35°)
-                -W * 1.2,           # increased vertical in turn
-            ]),
+            weight_rider_kg=rider_kg * 1.3,
+            front_foot_force=np.array([0.08 * W, 0.20 * W, -0.46 * W]),
+            back_foot_force=np.array([0.12 * W, 0.45 * W, -0.84 * W]),
+            mast_force=np.array([total_drag * 1.5, W * 0.7, -W * 1.2]),
             mast_torque=np.array([
-                W * 0.7 * foil.mast_length * 0.5,  # ~220 Nm roll from lateral
-                pitch_moment_cruise,                 # pitch unchanged
-                total_drag * foil.mast_length * 0.3, # ~12 Nm yaw
+                W * 0.7 * foil.mast_length * 0.5,
+                pitch_moment_cruise,
+                total_drag * foil.mast_length * 0.3,
             ]),
+            objective_weight=1.1,
+        ),
+        LoadCase(
+            name="front_foot_drive",
+            weight_rider_kg=rider_kg * 1.15,
+            front_foot_force=np.array([0.15 * W, 0.0, -0.86 * W]),
+            back_foot_force=np.array([0.04 * W, 0.0, -0.29 * W]),
+            mast_force=np.array([total_drag * 0.9, 0.0, -W * 1.1]),
+            mast_torque=np.array([0.0, pitch_moment_cruise * 1.4, 0.0]),
+            objective_weight=1.0,
+        ),
+        LoadCase(
+            name="back_foot_drive",
+            weight_rider_kg=rider_kg * 1.25,
+            front_foot_force=np.array([0.03 * W, 0.0, -0.19 * W]),
+            back_foot_force=np.array([0.20 * W, 0.0, -1.06 * W]),
+            mast_force=np.array([total_drag * 1.1, 0.0, -W * 1.3]),
+            mast_torque=np.array([0.0, pitch_moment_cruise * 2.1, 0.0]),
+            objective_weight=1.15,
         ),
     ]
     return cases

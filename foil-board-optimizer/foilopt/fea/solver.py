@@ -111,7 +111,7 @@ class FEASolver3D:
         for n in fixed_nodes:
             fixed_dofs.extend([3 * n, 3 * n + 1, 3 * n + 2])
 
-        # --- Deck load: rider weight split between front and back foot ---
+        # --- Deck load: explicit front/back foot vectors on the real deck surface ---
         # Use board_shape to find the actual deck surface in optimizer coords.
         # Without this, top-face nodes (z=thickness) connect only to void elements
         # that are above the curved deck at most X positions → near-zero stiffness.
@@ -127,23 +127,21 @@ class FEASolver3D:
         else:
             top_mask = nodes[:, 2] > board.thickness - mesh.dz * 0.5
 
-        total_force = load_case.get_deck_force_total()
-        front_force = total_force * board.front_foot_weight
-        back_force = total_force * (1.0 - board.front_foot_weight)
-
         front_nodes = np.where(top_mask & board.is_in_front_foot(nodes[:, 0], nodes[:, 1]))[0]
         back_nodes = np.where(top_mask & board.is_in_back_foot(nodes[:, 0], nodes[:, 1]))[0]
+
+        front_force, back_force = self._resolve_foot_forces(load_case)
 
         if len(front_nodes) > 0:
             fpn = front_force / len(front_nodes)
             for n in front_nodes:
-                f[3 * n + 2] -= fpn
+                f[3 * n:3 * n + 3] += fpn
         if len(back_nodes) > 0:
             fpn = back_force / len(back_nodes)
             for n in back_nodes:
-                f[3 * n + 2] -= fpn
+                f[3 * n:3 * n + 3] += fpn
 
-        # --- Mast forces at mount region ---
+        # --- Mast forces and torques at mount region ---
         # The foil pushes UP through the mast into the board. The mast_force
         # in the LoadCase is defined as the hydrodynamic force on the foil
         # (e.g. Fz=-785 means lift pulling down on the water side).
@@ -159,9 +157,73 @@ class FEASolver3D:
                 f[3 * n] += force_per_node[0]
                 f[3 * n + 1] += force_per_node[1]
                 f[3 * n + 2] += force_per_node[2]
+            self._apply_mast_torque(f, top_mast_nodes, load_case.mast_torque)
 
         fixed_dofs = np.unique(np.array(fixed_dofs, dtype=np.int64))
         return fixed_dofs, f
+
+    def _resolve_foot_forces(self, load_case: LoadCase) -> Tuple[np.ndarray, np.ndarray]:
+        """Return explicit front/back foot load vectors for a load case."""
+        if load_case.front_foot_force is not None or load_case.back_foot_force is not None:
+            front = np.asarray(
+                load_case.front_foot_force
+                if load_case.front_foot_force is not None
+                else np.zeros(3),
+                dtype=float,
+            )
+            back = np.asarray(
+                load_case.back_foot_force
+                if load_case.back_foot_force is not None
+                else np.zeros(3),
+                dtype=float,
+            )
+            return front, back
+
+        total_force = load_case.get_deck_force_total()
+        front_fraction = (
+            self.board.front_foot_weight
+            if load_case.front_foot_fraction is None
+            else load_case.front_foot_fraction
+        )
+        front_fraction = float(np.clip(front_fraction, 0.0, 1.0))
+        front = np.array([0.0, 0.0, -total_force * front_fraction], dtype=float)
+        back = np.array([0.0, 0.0, -total_force * (1.0 - front_fraction)], dtype=float)
+        return front, back
+
+    def _apply_mast_torque(
+        self, force_vector: np.ndarray, mast_nodes: np.ndarray, torque: np.ndarray
+    ) -> None:
+        """Apply mast torque as equivalent nodal forces over the mast patch."""
+        if torque is None or len(mast_nodes) == 0:
+            return
+
+        coords = self.mesh.nodes[mast_nodes]
+        rel = coords - np.mean(coords, axis=0, keepdims=True)
+        tx, ty, tz = np.asarray(torque, dtype=float)
+
+        y = rel[:, 1]
+        x = rel[:, 0]
+        xy2 = x * x + y * y
+
+        if abs(tx) > 0.0:
+            denom = np.sum(y * y) + 1e-12
+            fz = tx * y / denom
+            for idx, node in enumerate(mast_nodes):
+                force_vector[3 * node + 2] += fz[idx]
+
+        if abs(ty) > 0.0:
+            denom = np.sum(x * x) + 1e-12
+            fz = -ty * x / denom
+            for idx, node in enumerate(mast_nodes):
+                force_vector[3 * node + 2] += fz[idx]
+
+        if abs(tz) > 0.0:
+            denom = np.sum(xy2) + 1e-12
+            fx = -tz * y / denom
+            fy = tz * x / denom
+            for idx, node in enumerate(mast_nodes):
+                force_vector[3 * node] += fx[idx]
+                force_vector[3 * node + 1] += fy[idx]
 
     def assemble_stiffness(self, density: np.ndarray) -> sparse.csc_matrix:
         """Assemble global stiffness matrix with SIMP interpolation.
@@ -358,17 +420,20 @@ class FEASolver3D:
         """
         results = {}
         total_compliance = 0.0
+        total_weight = 0.0
         max_disp = 0.0
 
         for lc in load_cases:
             u, info = self.solve(density, lc)
             results[lc.name] = info
-            total_compliance += info["compliance"]
+            weight = float(getattr(lc, "objective_weight", 1.0))
+            total_compliance += weight * info["compliance"]
+            total_weight += weight
             max_disp = max(max_disp, info["max_displacement"])
 
         # Stiffness score: lower compliance = stiffer board
         # Normalize by number of load cases
-        avg_compliance = total_compliance / len(load_cases)
+        avg_compliance = total_compliance / max(total_weight, 1e-12)
 
         results["aggregate"] = {
             "total_compliance": total_compliance,

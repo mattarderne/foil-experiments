@@ -69,6 +69,7 @@ def run_optimization(
     bulkhead_mode: bool = False,
     bulkhead_xmin: float = 0.0,
     bulkhead_xmax: float = 0.0,
+    rider_kg: float = 85.0,
 ) -> dict:
     """Run SIMP topology optimization on Modal."""
     import numpy as np
@@ -91,7 +92,7 @@ def run_optimization(
     print(f"Mesh: {nelx}x{nely}x{nelz} = {mesh.n_elements} elements")
     print(f"Nodes: {mesh.n_nodes}, DOFs: {3 * mesh.n_nodes}")
 
-    load_cases = create_default_load_cases()
+    load_cases = create_default_load_cases(rider_kg=rider_kg)
     config = SIMPConfig(
         penal=penal,
         rmin=rmin,
@@ -167,6 +168,7 @@ def run_optimization(
         "back_foot_bounds": list(board.get_back_foot_bounds()),
         "foot_bounds": list(board.get_foot_zone_bounds()),
         "volfrac": result.final_volume,
+        "rider_kg": rider_kg,
         "target_mass_kg": target_mass_kg,
         "max_member_size": max_member_size,
         "compliance": result.final_compliance,
@@ -174,7 +176,15 @@ def run_optimization(
         "time_seconds": result.total_time,
         "sigma_yield": solver.sigma_yield,
         "load_cases": [
-            {"name": lc.name, "mast_force": lc.mast_force.tolist(), "mast_torque": lc.mast_torque.tolist()}
+            {
+                "name": lc.name,
+                "mast_force": lc.mast_force.tolist(),
+                "mast_torque": lc.mast_torque.tolist(),
+                "front_foot_force": lc.front_foot_force.tolist() if lc.front_foot_force is not None else None,
+                "back_foot_force": lc.back_foot_force.tolist() if lc.back_foot_force is not None else None,
+                "total_force": lc.get_deck_force_total(),
+                "objective_weight": lc.objective_weight,
+            }
             for lc in load_cases
         ],
     }
@@ -209,6 +219,7 @@ def main():
     parser.add_argument("--bulkhead-mode", action="store_true", help="Use X-column design vars for transverse bulkheads")
     parser.add_argument("--bulkhead-xmin", type=float, default=0.0, help="Force void below this X position (m)")
     parser.add_argument("--bulkhead-xmax", type=float, default=0.0, help="Force void above this X position (m)")
+    parser.add_argument("--rider-kg", type=float, default=85.0, help="Rider mass used to derive load cases")
     parser.add_argument("--output", default="results/modal_latest")
     args = parser.parse_args()
 
@@ -234,6 +245,7 @@ def main():
                 bulkhead_mode=args.bulkhead_mode,
                 bulkhead_xmin=args.bulkhead_xmin,
                 bulkhead_xmax=args.bulkhead_xmax,
+                rider_kg=args.rider_kg,
             )
 
     # Save results locally
