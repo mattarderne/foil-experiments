@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Foil Insert Load Comparison</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      --paper: #efe7d8;
+      --panel: rgba(253, 250, 244, 0.88);
+      --ink: #172127;
+      --muted: #5a666e;
+      --line: rgba(23, 33, 39, 0.12);
+      --accent: #b6532f;
+      --accent-2: #1b6b72;
+      --bg1: #f6f0e5;
+      --bg2: #e7dece;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      color: var(--ink);
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        radial-gradient(circle at top left, rgba(182, 83, 47, 0.12), transparent 30%),
+        radial-gradient(circle at bottom right, rgba(27, 107, 114, 0.14), transparent 26%),
+        linear-gradient(180deg, var(--bg1) 0%, var(--bg2) 100%);
+    }
+
+    .page {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 16px;
+      padding: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      backdrop-filter: blur(10px);
+    }
+
+    .hero {
+      padding: 18px 20px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .eyebrow {
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent-2);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(30px, 4vw, 46px);
+      line-height: 0.92;
+      font-weight: 600;
+    }
+
+    .hero p,
+    .sidebar p,
+    .loading {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .controls {
+      padding: 14px 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .label {
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      min-width: 78px;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+      color: var(--ink);
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid rgba(23, 33, 39, 0.14);
+      border-radius: 999px;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.74);
+      cursor: pointer;
+      transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(23, 33, 39, 0.28);
+    }
+
+    button.active {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: #fff;
+    }
+
+    .slider-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .slider-card,
+    .param-card,
+    .readout,
+    .status {
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid var(--line);
+      display: grid;
+      gap: 7px;
+    }
+
+    .slider-card label,
+    .field label,
+    .readout-title {
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .slider-card input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent-2);
+    }
+
+    .param-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .param-card h3 {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .param-copy {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .param-fields {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 10px;
+    }
+
+    .field {
+      display: grid;
+      gap: 4px;
+    }
+
+    .field.wide {
+      grid-column: 1 / -1;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(23, 33, 39, 0.14);
+      background: rgba(255, 255, 255, 0.84);
+    }
+
+    .param-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .viewer-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 16px;
+      min-height: 0;
+    }
+
+    #viewport {
+      min-height: 68vh;
+      position: relative;
+      overflow: hidden;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background:
+        radial-gradient(circle at top, rgba(255, 255, 255, 0.75), transparent 36%),
+        linear-gradient(180deg, rgba(255, 251, 244, 0.7), rgba(231, 223, 208, 0.88));
+    }
+
+    #viewport::after {
+      content: "";
+      position: absolute;
+      left: 28px;
+      right: 28px;
+      bottom: 18px;
+      height: 26px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(23, 33, 39, 0.16), transparent 66%);
+      filter: blur(10px);
+      pointer-events: none;
+    }
+
+    .sidebar {
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+      align-content: start;
+    }
+
+    .sidebar h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .legend {
+      display: grid;
+      gap: 8px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      flex: none;
+    }
+
+    .readout strong {
+      font-size: 18px;
+      line-height: 1.1;
+    }
+
+    .loading {
+      position: absolute;
+      inset: 24px auto auto 24px;
+      z-index: 3;
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: rgba(255, 251, 244, 0.9);
+      border: 1px solid var(--line);
+    }
+
+    @media (max-width: 980px) {
+      .viewer-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .slider-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .param-grid {
+        grid-template-columns: 1fr;
+      }
+
+      #viewport {
+        min-height: 56vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="panel hero">
+      <div class="eyebrow">Actual TT60 Shape</div>
+      <h1>Tuttle vs Dual-Track Shell Strain Comparison</h1>
+      <p>
+        This version uses the actual TT60 board surface generated from the local Shape3d file and a browser-side reduced-order solve. You can change Tuttle and dual-track insert length, width, height, and footprint shape, then compare the resulting shell field on the same board.
+      </p>
+    </section>
+
+    <section class="panel controls">
+      <div class="row" id="load-case-row">
+        <span class="label">Load Case</span>
+      </div>
+      <div class="row" id="view-row">
+        <span class="label">View</span>
+      </div>
+      <div class="row" id="toggle-row">
+        <span class="label">Layers</span>
+      </div>
+      <div class="slider-grid">
+        <div class="slider-card">
+          <label for="slice-x">Slice X <span id="slice-x-value">100%</span></label>
+          <input id="slice-x" type="range" min="0" max="100" value="100">
+        </div>
+        <div class="slider-card">
+          <label for="slice-y">Slice Y <span id="slice-y-value">100%</span></label>
+          <input id="slice-y" type="range" min="0" max="100" value="100">
+        </div>
+        <div class="slider-card">
+          <label for="slice-z">Slice Z <span id="slice-z-value">100%</span></label>
+          <input id="slice-z" type="range" min="0" max="100" value="100">
+        </div>
+        <div class="slider-card">
+          <label for="strain-gain">Strain Gain <span id="strain-gain-value">2.8x</span></label>
+          <input id="strain-gain" type="range" min="10" max="60" value="28">
+        </div>
+      </div>
+      <div id="param-grid" class="param-grid"></div>
+    </section>
+
+    <div class="viewer-layout">
+      <div id="viewport" class="panel">
+        <div id="loading" class="loading">Loading TT60 board mesh...</div>
+      </div>
+
+      <aside class="panel sidebar">
+        <h2>What Changed</h2>
+        <p>
+          Both boards share the same TT60 shell, but each insert now has its own adjustable geometry and its own solved load path. The color scale stays shared between the two variants inside each load case, so red means the same magnitude on both sides of the comparison.
+        </p>
+
+        <div class="legend">
+          <div class="legend-item"><span class="swatch" style="background:#183a54"></span>low strain</div>
+          <div class="legend-item"><span class="swatch" style="background:#2f8f83"></span>moderate spread</div>
+          <div class="legend-item"><span class="swatch" style="background:#ffd166"></span>high shell demand</div>
+          <div class="legend-item"><span class="swatch" style="background:#d1495b"></span>peak local concentration</div>
+          <div class="legend-item"><span class="swatch" style="background:#c4683d"></span>HD foam insert</div>
+          <div class="legend-item"><span class="swatch" style="background:#ffe08a"></span>bond line</div>
+        </div>
+
+        <div class="readout">
+          <div class="readout-title">Load Case</div>
+          <strong id="case-title">Loading...</strong>
+          <span id="case-copy"></span>
+        </div>
+
+        <div class="status">
+          <div class="readout-title">Comparison Read</div>
+          <span id="comparison-copy">Waiting for data...</span>
+        </div>
+
+        <div class="status">
+          <div class="readout-title">Method</div>
+          <span>
+            Geometry is real TT60 surface data from Shape3d. The field comes from a solved reduced-order structural model with top skin, bottom skin, and through-thickness coupling, evaluated in the browser after each parameter change. It is still not full 3D continuum FEA.
+          </span>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script>
+    window.addEventListener("error", (event) => {
+      const el = document.getElementById("loading");
+      if (el) {
+        el.textContent = `Error: ${event.message}`;
+      }
+    });
+    window.addEventListener("unhandledrejection", (event) => {
+      const el = document.getElementById("loading");
+      if (el) {
+        el.textContent = `Error: ${event.reason?.message || event.reason || "Unhandled rejection"}`;
+      }
+    });
+  </script>
+
+  <script type="module">
+    import "./viewer-app.js";
+  </script>
+</body>
+</html>

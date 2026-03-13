@@ -136,6 +136,13 @@ Autonomous topology optimization of hydrofoil board internal structures. Uses FE
 
 **Start here** if you want to see the autoresearch pattern in action.
 
+### [foil-insert-load-comparison](foil-insert-load-comparison/) — Tuttle vs dual-track insert comparison
+**Status:** poc
+
+Side-by-side structural comparison of a Tuttle box and a regular dual-track mast cassette in the same TT60 foil board. The project holds the outer board shape fixed and changes only the insert architecture, bond path, and local HD foam geometry.
+
+Includes a browser-based 3D viewer on the actual TT60 board shape with adjustable insert dimensions and track footprint shapes, plus a reduced-order structural solve that updates the shell field after each parameter change.
+
 ### [foil-rl-pump](foil-rl-pump/) — RL pump foil simulation
 **Status:** mvp
 

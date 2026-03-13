@@ -1,0 +1,138 @@
+{
+  "name": "foil-insert-load-comparison",
+  "board_reference": {
+    "description": "Same TT60 board used by the active local foil-board-optimizer Shape3d/STL workflow",
+    "outer_shell_source": "board STL or board_shape.s3dx-derived surface",
+    "length_m": 1.641,
+    "width_m": 0.495,
+    "thickness_m": 0.117,
+    "shell_thickness_m": 0.004
+  },
+  "materials": {
+    "carbon_shell": {
+      "model": "linear-elastic placeholder",
+      "notes": "Use laminate-equivalent shell or solid region; replace with coupon data later"
+    },
+    "eps_core": {
+      "model": "linear-elastic placeholder",
+      "notes": "Low-modulus isotropic background material"
+    },
+    "hd_foam_insert": {
+      "model": "linear-elastic placeholder",
+      "notes": "Higher-modulus isotropic material than EPS"
+    },
+    "mast_interface": {
+      "model": "rigid",
+      "notes": "No flex and no slip between mast and insert"
+    }
+  },
+  "insert_variants": {
+    "tuttle": {
+      "length_m": 0.1905,
+      "width_m": 0.0508,
+      "height_m": 0.12065,
+      "bond_faces": [
+        "top_shell",
+        "bottom_shell"
+      ]
+    },
+    "dual_track": {
+      "length_m": 0.508,
+      "width_m": 0.1905,
+      "height_m": 0.04064,
+      "bond_faces": [
+        "bottom_shell"
+      ]
+    }
+  },
+  "mast_interface": {
+    "chord_m": 0.1143
+  },
+  "load_cases": [
+    {
+      "name": "pure_vertical_transfer",
+      "mast_force_N": [
+        0.0,
+        0.0,
+        1000.0
+      ],
+      "mast_moment_Nm": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "notes": "Compare vertical load spreading and bottom-skin bearing"
+    },
+    {
+      "name": "vertical_plus_pitch",
+      "mast_force_N": [
+        0.0,
+        0.0,
+        1000.0
+      ],
+      "mast_moment_Nm": [
+        0.0,
+        150.0,
+        0.0
+      ],
+      "notes": "Compare fore-aft shell bridging and top-vs-bottom load split"
+    },
+    {
+      "name": "vertical_plus_lateral",
+      "mast_force_N": [
+        0.0,
+        400.0,
+        800.0
+      ],
+      "mast_moment_Nm": [
+        100.0,
+        0.0,
+        0.0
+      ],
+      "notes": "Compare carve-style lateral and roll transfer"
+    },
+    {
+      "name": "pump_impulse_envelope",
+      "mast_force_N": [
+        0.0,
+        0.0,
+        2000.0
+      ],
+      "mast_moment_Nm": [
+        0.0,
+        300.0,
+        0.0
+      ],
+      "notes": "Higher transient envelope using the same direction set as pitch case"
+    }
+  ],
+  "outputs": [
+    "shell_von_mises",
+    "shell_principal_tension",
+    "insert_hd_foam_stress",
+    "eps_stress",
+    "bond_line_shear",
+    "bond_line_peel",
+    "mast_base_displacement",
+    "regional_strain_energy_split"
+  ],
+  "viewer": {
+    "layout": "side_by_side",
+    "required_layers": [
+      "board_shell",
+      "eps_core",
+      "hd_insert",
+      "bond_lines",
+      "mast_interface",
+      "force_arrows",
+      "stress_field"
+    ],
+    "interactions": [
+      "load_case_switch",
+      "variant_toggle",
+      "cut_planes",
+      "region_visibility",
+      "probe_readout"
+    ]
+  }
+}
