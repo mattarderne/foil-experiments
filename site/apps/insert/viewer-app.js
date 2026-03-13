@@ -21,8 +21,10 @@ const state = {
     loads: true,
   },
   params: null,
+  defaultParams: null,
   data: null,
   model: null,
+  referencePeaks: {},
   solveToken: 0,
 };
 
@@ -59,6 +61,19 @@ scene.add(grid);
 
 const boardVariants = {};
 const initialFields = {};
+
+function cloneParams(params) {
+  return {
+    tuttle: {
+      shape: params.tuttle.shape,
+      size: { ...params.tuttle.size },
+    },
+    track: {
+      shape: params.track.shape,
+      size: { ...params.track.size },
+    },
+  };
+}
 
 function showLoading(text) {
   loadingEl.textContent = text;
@@ -403,7 +418,7 @@ function updateLoadArrows() {
   const tuttle = state.params.tuttle;
   const track = state.params.track;
   document.getElementById("comparison-copy").textContent =
-    `Shared color scale for ${loadInfo.label.toLowerCase()}. `
+    `Color scale locked to default geometry for ${loadInfo.label.toLowerCase()}. `
     + `Tuttle ${formatDims(tuttle)}. Dual-track ${formatDims(track)}.`;
 
   Object.values(boardVariants).forEach((group) => {
@@ -653,7 +668,7 @@ function buildParamCard(variant, title, copy) {
   });
 
   card.querySelector(`#${variant}-reset`).addEventListener("click", () => {
-    state.params[variant] = createDefaultParams(state.data)[variant];
+    state.params[variant] = cloneParams(state.defaultParams)[variant];
     rootRefresh();
     scheduleSolve();
   });
@@ -682,7 +697,8 @@ function scheduleSolve() {
 async function solveAndRender() {
   showLoading("Solving reduced-order model...");
   await new Promise((resolve) => window.requestAnimationFrame(resolve));
-  const result = solveNormalizedFields(state.data, state.model, state.params, state.loadCase);
+  const normalizationPeak = state.referencePeaks[state.loadCase];
+  const result = solveNormalizedFields(state.data, state.model, state.params, state.loadCase, normalizationPeak);
   applySolvedFields(result.fields);
   updateLoadArrows();
   updateClipping();
@@ -706,7 +722,17 @@ async function init() {
   }
   state.data = await response.json();
   state.model = preprocessModel(state.data);
-  state.params = createDefaultParams(state.data);
+  state.defaultParams = createDefaultParams(state.data);
+  state.params = cloneParams(state.defaultParams);
+  for (const loadCase of Object.keys(state.data.load_cases)) {
+    const baseline = solveNormalizedFields(
+      state.data,
+      state.model,
+      cloneParams(state.defaultParams),
+      loadCase,
+    );
+    state.referencePeaks[loadCase] = baseline.normalizationPeak;
+  }
   initialFields.tuttle = state.data.fields.tuttle;
   initialFields.track = state.data.fields.track;
 

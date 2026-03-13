@@ -135,14 +135,16 @@ export function preprocessModel(data) {
   };
 }
 
-export function solveNormalizedFields(data, model, paramsByVariant, loadCase) {
+export function solveNormalizedFields(data, model, paramsByVariant, loadCase, normalizationPeak = null) {
   const raw = {};
-  let sharedPeak = 1e-12;
+  let sharedPeak = normalizationPeak ?? 1e-12;
 
   for (const variant of ["tuttle", "track"]) {
     const solved = solveVariant(data, model, variant, paramsByVariant[variant], loadCase);
     raw[variant] = solved;
-    sharedPeak = Math.max(sharedPeak, solved.peak);
+    if (normalizationPeak == null) {
+      sharedPeak = Math.max(sharedPeak, solved.peak);
+    }
   }
 
   return {
@@ -151,6 +153,7 @@ export function solveNormalizedFields(data, model, paramsByVariant, loadCase) {
       track: normalizeField(raw.track.field, sharedPeak),
     },
     raw,
+    normalizationPeak: sharedPeak,
   };
 }
 
