@@ -125,6 +125,11 @@ Modal spins up a machine, runs the simulation, and sends results back to your la
 
 A Claude Code session as a CAD collaborator. Describe what you want ("narrow the tail 3cm", "add more nose rocker") and Claude modifies the Shape3D file, shows a 3D preview, commits the change with rationale, and feeds the result into the FEA optimizer. Baseline design is a TT60 foil board by Tom Partington.
 
+### [recursive-board-design](recursive-board-design/) — Recursive foil board design
+**Status:** planning
+
+Autonomous foil board design through recursive self-improvement. Load existing board geometries as baselines, simulate performance across critical riding scenarios (touchdown at various angles, takeoff speed, pump authority, pitch stability, turning), infer optimal design parameters, then recursively generate new boards that push the Pareto frontier. Each successful design feeds back into the model, making the next iteration smarter. Inspired by the Karpathy autoresearch pattern.
+
 ### [foil-design](foil-design/) — Hydrofoil wing optimization
 **Status:** planning
 
