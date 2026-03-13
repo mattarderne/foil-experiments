@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>DW Foil Experiments</title>
+  <title>Foil Experiments</title>
   <style>
     :root {
       --bg: #f3ecdf;
@@ -83,7 +83,6 @@
 
     h1 {
       font-size: clamp(2.7rem, 7vw, 5rem);
-      max-width: 11ch;
     }
 
     p {
@@ -95,7 +94,7 @@
     .hero-copy {
       display: grid;
       gap: 12px;
-      max-width: 72ch;
+      max-width: 96ch;
     }
 
     .tabs {
@@ -108,48 +107,6 @@
     }
 
     .tabs::-webkit-scrollbar { display: none; }
-
-    .assist {
-      margin-bottom: 16px;
-      padding: 16px 18px;
-      background: var(--paper);
-      border: 1px solid var(--line);
-      border-radius: 24px;
-      box-shadow: var(--shadow);
-      display: grid;
-      gap: 12px;
-    }
-
-    .assist h3 {
-      font-size: 28px;
-    }
-
-    .assist p {
-      max-width: 80ch;
-    }
-
-    .assist-steps {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .assist-step {
-      padding: 14px;
-      border-radius: 18px;
-      background: var(--card);
-      border: 1px solid var(--line);
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.5;
-    }
-
-    .assist-step strong {
-      display: block;
-      margin-bottom: 6px;
-      color: var(--ink);
-      font-size: 15px;
-    }
 
     .tab {
       border: 1px solid var(--line);
@@ -427,7 +384,6 @@
     }
 
     @media (max-width: 1020px) {
-      .assist-steps,
       .panel {
         grid-template-columns: 1fr;
       }
@@ -466,38 +422,13 @@
 <body>
   <div class="page">
     <section class="hero">
-      <div class="eyebrow">DW Foil Experiment Browser</div>
+      <div class="eyebrow">DW Foil</div>
       <div class="hero-copy">
-        <h1>Browse the foil experiments without digging through code.</h1>
+        <h1>Foil Experiments</h1>
         <p>
-          Pick a tab, open the main demo, and swipe through the media like a short story. The site is meant to be the simple public front door to the structural, simulation, and motion experiments in the repo.
+          A simple front door to the structural, simulation, and motion experiments in the repo. Pick a tab, open the main demo, and swipe through the media like a short story.
         </p>
       </div>
-    </section>
-
-    <section class="assist">
-      <div class="eyebrow">Non-Technical Setup</div>
-      <h3>Use Claude Cowork if you want help cloning, installing, and running the repo.</h3>
-      <p>
-        If you do not want to work in a terminal yourself, a practical route is <a href="https://claude.com/product/cowork" target="_blank" rel="noreferrer"><strong>Claude Cowork</strong></a> in Claude Desktop. Based on the way this site is meant to be used, you can ask Cowork to clone the repo, install dependencies, and run the viewers for you. Start with the official <a href="https://support.claude.com/en/articles/13345190-get-started-with-cowork" target="_blank" rel="noreferrer"><strong>Cowork getting-started guide</strong></a>.
-      </p>
-      <div class="assist-steps">
-        <div class="assist-step">
-          <strong>1. Start with Claude Pro</strong>
-          Pro is the best-cost starting point for most individuals. It is the cheapest paid tier, and Cowork is available on paid Claude plans.
-        </div>
-        <div class="assist-step">
-          <strong>2. Ask Cowork to do the setup</strong>
-          Tell it to clone <code>dwfoil-com/foil-experiments</code>, install what the repo needs, and run the website or viewers you want to explore.
-        </div>
-        <div class="assist-step">
-          <strong>3. Move to Max 5x only if needed</strong>
-          If you expect long or frequent Cowork sessions, Max 5x is the next sensible step up. It gives much more session capacity, but costs substantially more.
-        </div>
-      </div>
-      <p>
-        Once you know what you actually want to optimize, the more advanced workflow is a long-running <strong>Karpathy loop</strong>: ask the agent to keep iterating on one narrow objective, review results, adjust the target, and continue. Cowork is a good way to start; a tighter experiment loop is better once the objective is clear.
-      </p>
     </section>
 
     <nav class="tabs" id="tabs" aria-label="Experiments"></nav>
@@ -547,6 +478,52 @@
     const raw = "https://raw.githubusercontent.com/dwfoil-com/foil-experiments/main";
 
     const experiments = [
+      {
+        id: "get-started",
+        tab: "Get started",
+        title: "Get Started",
+        status: "Non-technical setup",
+        statusClass: "status-in-progress",
+        lede: "Use Claude Cowork if you want help cloning the repo, installing dependencies, and running the experiments without doing the terminal setup yourself.",
+        summary: "Start with Claude Cowork in Claude Desktop and ask it to clone dwfoil-com/foil-experiments, install what the repo needs, and run the viewers you want to explore. Claude Pro is the best-cost place to start for most people. Move to Max 5x only if you expect long or frequent Cowork sessions. Once you know exactly what you want to optimize, switch into a tighter Karpathy loop: keep the agent focused on one narrow objective, review the results, refine the target, and continue iterating.",
+        open: { label: "Open Claude Cowork", href: "https://claude.com/product/cowork" },
+        source: "https://claude.com/product/cowork",
+        sourceLabel: "View source",
+        readme: "https://support.claude.com/en/articles/13345190-get-started-with-cowork",
+        readmeLabel: "How to experiment",
+        resources: [
+          { label: "Claude Cowork", href: "https://claude.com/product/cowork" },
+          { label: "Cowork getting-started guide", href: "https://support.claude.com/en/articles/13345190-get-started-with-cowork" },
+          { label: "Recommended starting plan: Claude Pro", href: "https://claude.com/pricing" },
+          { label: "Higher-capacity option: Claude Max 5x", href: "https://claude.com/pricing" },
+        ],
+        stories: [
+          {
+            type: "image",
+            title: "Start with Cowork",
+            subtitle: "Let the agent handle the setup",
+            caption: "If you are non-technical, ask Cowork to clone the repo, install dependencies, and run the website or viewers for you.",
+            fallbackTitle: "Use Claude Cowork",
+            fallbackCopy: "A practical non-technical workflow is to let Cowork handle the repo setup and running steps."
+          },
+          {
+            type: "image",
+            title: "Best-cost plan",
+            subtitle: "Start with Claude Pro",
+            caption: "Claude Pro is the best-value place to start for most individual users. Only move to Max 5x if you know you need much longer or more frequent sessions.",
+            fallbackTitle: "Start with Claude Pro",
+            fallbackCopy: "Pro is the sensible default. Max 5x is for heavier use, not the starting point."
+          },
+          {
+            type: "image",
+            title: "Advanced workflow",
+            subtitle: "Move into the Karpathy loop once the goal is clear",
+            caption: "Once you know what you want to optimize, run longer focused iterations around one objective, review the outputs, refine the target, and continue.",
+            fallbackTitle: "Use the Karpathy loop",
+            fallbackCopy: "First get oriented. Then switch into a long-running edit-run-review loop around one narrow optimization target."
+          },
+        ],
+      },
       {
         id: "board",
         tab: "Board structure optimizer",
