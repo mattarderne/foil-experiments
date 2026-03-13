@@ -109,6 +109,48 @@
 
     .tabs::-webkit-scrollbar { display: none; }
 
+    .assist {
+      margin-bottom: 16px;
+      padding: 16px 18px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      display: grid;
+      gap: 12px;
+    }
+
+    .assist h3 {
+      font-size: 28px;
+    }
+
+    .assist p {
+      max-width: 80ch;
+    }
+
+    .assist-steps {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .assist-step {
+      padding: 14px;
+      border-radius: 18px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .assist-step strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--ink);
+      font-size: 15px;
+    }
+
     .tab {
       border: 1px solid var(--line);
       background: rgba(255, 255, 255, 0.58);
@@ -385,6 +427,7 @@
     }
 
     @media (max-width: 1020px) {
+      .assist-steps,
       .panel {
         grid-template-columns: 1fr;
       }
@@ -430,6 +473,31 @@
           Pick a tab, open the main demo, and swipe through the media like a short story. The site is meant to be the simple public front door to the structural, simulation, and motion experiments in the repo.
         </p>
       </div>
+    </section>
+
+    <section class="assist">
+      <div class="eyebrow">Non-Technical Setup</div>
+      <h3>Use Claude Cowork if you want help cloning, installing, and running the repo.</h3>
+      <p>
+        If you do not want to work in a terminal yourself, a practical route is <a href="https://claude.com/product/cowork" target="_blank" rel="noreferrer"><strong>Claude Cowork</strong></a> in Claude Desktop. Based on the way this site is meant to be used, you can ask Cowork to clone the repo, install dependencies, and run the viewers for you. Start with the official <a href="https://support.claude.com/en/articles/13345190-get-started-with-cowork" target="_blank" rel="noreferrer"><strong>Cowork getting-started guide</strong></a>.
+      </p>
+      <div class="assist-steps">
+        <div class="assist-step">
+          <strong>1. Start with Claude Pro</strong>
+          Pro is the best-cost starting point for most individuals. It is the cheapest paid tier, and Cowork is available on paid Claude plans.
+        </div>
+        <div class="assist-step">
+          <strong>2. Ask Cowork to do the setup</strong>
+          Tell it to clone <code>dwfoil-com/foil-experiments</code>, install what the repo needs, and run the website or viewers you want to explore.
+        </div>
+        <div class="assist-step">
+          <strong>3. Move to Max 5x only if needed</strong>
+          If you expect long or frequent Cowork sessions, Max 5x is the next sensible step up. It gives much more session capacity, but costs substantially more.
+        </div>
+      </div>
+      <p>
+        Once you know what you actually want to optimize, the more advanced workflow is a long-running <strong>Karpathy loop</strong>: ask the agent to keep iterating on one narrow objective, review results, adjust the target, and continue. Cowork is a good way to start; a tighter experiment loop is better once the objective is clear.
+      </p>
     </section>
 
     <nav class="tabs" id="tabs" aria-label="Experiments"></nav>
