@@ -127,6 +127,7 @@ foil-design/
 | XFLR5 | GUI integrating XFoil + VLM, popular with foil designers | [SourceForge](https://sourceforge.net/projects/xflr5/) |
 | AeroPy | XFoil wrapper with CST parameterization | [GitHub](https://github.com/leal26/AeroPy) |
 | OF2 | Open-source kitesurf hydrofoil hardware | [GitHub](https://github.com/ludopenfoil/OF2) |
+| hydrofoil-profile-selection | Hydrofoil mast profile optimizer — evaluates structural rigidity (Iy/Ix) vs drag across symmetric airfoils using viiflow CFD. Useful reference for jointly optimizing aero + structural metrics | [GitHub](https://github.com/cdorfer/hydrofoil-profile-selection) |
 
 ## Getting Started (when ready to build)
 
