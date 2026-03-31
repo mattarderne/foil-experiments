@@ -69,11 +69,28 @@ The dispersion relation `ω(k) = √(gk)` is correct, and in principle wave grou
 
 ## Technical Approach
 
-### Architecture: Hybrid Spectral + Envelope Model
+### Architecture Options
 
-The simulation should combine two layers:
+There are two viable approaches. Both correctly model group velocity; they differ in representation.
 
-#### Layer 1: Wave Envelope Model (Physics Core)
+#### Option A: Lagrangian Wave Packets (Water Wave Packets method)
+
+Based on Jeschke & Wojtan (SIGGRAPH 2017). Wave energy is carried by Lagrangian particles, each representing a wave packet:
+- Each packet has position, wavelength, amplitude, and direction
+- Packets propagate at **group velocity** `c_g = dω/dk`
+- Surface is reconstructed by summing packet contributions at each render point
+- Naturally handles dispersion, diffraction, refraction, reflection
+- Energy conservation guaranteed by construction
+- Source code available: [github.com/jeschke/water-wave-packets](https://github.com/jeschke/water-wave-packets)
+
+**Pros:** Explicit group velocity, intuitive control, parallelizable, proven in research.
+**Cons:** C++/DirectX (would need porting), particle count scales with domain, surface reconstruction cost.
+
+#### Option B: Hybrid NLS Envelope + FFT Surface
+
+The simulation combines two layers:
+
+##### Layer 1: Wave Envelope Model (Physics Core)
 Solves the **nonlinear Schrödinger equation (NLS)** or a simplified envelope equation to track wave group propagation:
 
 ```
@@ -88,7 +105,10 @@ This gives us:
 - Set wave emergence from multi-swell interference
 - Spatial coherence (energy packets move through the domain)
 
-#### Layer 2: Surface Realization (Rendering)
+**Pros:** Continuous field (no particle artifacts), natural multi-swell superposition, connects to rich NLS physics (modulational instability, rogue waves).
+**Cons:** More complex math, 2D extension is nontrivial, less intuitive than packets.
+
+##### Layer 2: Surface Realization (Rendering)
 Uses the envelope from Layer 1 to modulate a local FFT or Gerstner wave synthesis:
 
 ```
@@ -97,7 +117,7 @@ h(x, t) = Re[A(x, t) · exp(i(k₀x - ω₀t))] + high-frequency detail
 
 The envelope controls the local wave amplitude, while FFT/Gerstner provides the fine-scale wave texture within each group.
 
-#### Layer 3: Interaction Model
+##### Layer 3: Interaction Model
 Physics coupling for objects (foil board, rider) interacting with the wave field:
 - Local wave slope and orbital velocity from the surface realization
 - Energy exchange (wave forcing on object, wake generation)
@@ -145,6 +165,13 @@ Real ocean conditions have multiple independent swell trains from different stor
 | [Veros](https://github.com/team-ocean/veros) | Python/JAX | Primitive equations | No (wrong scale) | Ocean circulation model — km-scale, not wave-scale. Could provide background currents. |
 | [pakodekker/oceansar](https://github.com/pakodekker/oceansar) | Python/Numba | Linear wave theory | **Implicitly yes** | SAR ocean simulation. The surface generation module uses correct dispersion, so groups emerge from superposition. GPL-3.0. |
 
+### Wave Packet / Envelope Methods (Key Category)
+
+| Library | Platform | Approach | Group Velocity? | Notes |
+|---------|----------|----------|-----------------|-------|
+| [Water Wave Packets](https://github.com/jeschke/water-wave-packets) | C++/DirectX | Lagrangian wave energy packets | **Yes — explicit** | **SIGGRAPH 2017** (Jeschke & Wojtan). Each particle carries a wave energy packet that propagates at group velocity. Handles dispersion, diffraction, refraction, reflection. Energy conserving. Most directly relevant method for this project. |
+| [Water Surface Wavelets](https://dl.acm.org/doi/10.1145/3197517.3201336) | Paper | Wavelet-based extension | **Yes** | **SIGGRAPH 2018** follow-up. Scales to larger domains using wavelets instead of individual packets. |
+
 ### NLS / Envelope Solvers
 
 | Library | Platform | Notes |
@@ -153,13 +180,27 @@ Real ocean conditions have multiple independent swell trains from different stor
 | [Athanassoulis (2024) NCNLS](https://onlinelibrary.wiley.com/doi/10.1111/sapm.12774) | Paper | Nonconservative NLS for wind-forced ocean waves. Relevant physics for wind-swell growth. |
 | [gnlse-python](https://gnlse.readthedocs.io/en/latest/gnlse_intro.html) | Python | Generalized NLS solver. Built for optics but same equation. Modular, well-documented. |
 
+### Additional Three.js / Web Ocean Libraries
+
+| Library | URL | Notes |
+|---------|-----|-------|
+| [jbouny/fft-ocean](https://github.com/jbouny/fft-ocean) | Three.js/WebGL | FFT Tessendorf, 64x64 / 256x256 grid. Older (r72 era). |
+| [Mohido/Ocean](https://github.com/Mohido/Ocean) | Three.js | GPU Gems-based JavaScript ocean. |
+| [iFFT Ocean Module](https://discourse.threejs.org/t/ifft-ocean-wave-generator-module/51800) | Three.js | Community iFFT module, WebGPU + WebGL2. Actively developed. |
+| [Three.js GPGPU Water](https://threejs.org/examples/webgl_gpgpu_water.html) | Three.js | GPUComputationRenderer ripples. Interactive, small-scale. |
+| [david.li/waves](http://david.li/waves/) | WebGL | Standalone WebGL ocean demo. |
+| [MohamedQatish/BoatPhysics3D](https://github.com/MohamedQatish/BoatPhysics3D) | Three.js | Boat sim with wave interaction and buoyancy. |
+
 ### Academic References
 
 - [Tessendorf (2001/2004) — Simulating Ocean Water](https://jtessen.people.clemson.edu/reports/papers_files/coursenotes2004.pdf) — Foundation paper for FFT ocean rendering
+- [Water Wave Packets (SIGGRAPH 2017)](https://dl.acm.org/doi/10.1145/3072959.3073678) — Jeschke & Wojtan. Lagrangian wave packets with explicit group velocity. The most relevant prior art.
+- [Water Surface Wavelets (SIGGRAPH 2018)](https://dl.acm.org/doi/10.1145/3197517.3201336) — Extension of wave packets to larger scales
 - [Physically accurate real-time ocean waves for maritime simulators](https://www.vliz.be/imisdocs/publications/80/394980.pdf) — Extends Tessendorf toward physical accuracy
 - [Foil-Net: Deep Wave Classification for Hydrofoil Surfing](https://link.springer.com/chapter/10.1007/978-3-031-47966-3_9) — ML approach to classifying waves for foil surfing
 - [Wave groups — Coastal Dynamics (Bosboom & Stive)](https://geo.libretexts.org/Bookshelves/Oceanography/Coastal_Dynamics_(Bosboom_and_Stive)/03:_Ocean_waves/3.05:_Wind_wave_generation_and_dispersion/3.5.3:_Wave_groups) — Textbook treatment of wave group physics
 - [SWAN Technical Documentation](https://falk.ucsd.edu/modeling/swantech.pdf) — Full mathematical treatment of spectral wave propagation
+- [MIT Phase-Resolved Wave Modeling](https://dspace.mit.edu/handle/1721.1/33450) — Direct simulation and deterministic prediction of large-scale nonlinear ocean wave fields
 
 ---
 
